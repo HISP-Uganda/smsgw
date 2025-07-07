@@ -1,0 +1,7 @@
+{
+    "api_id": "${api_id}",
+    "api_password": "${api_password}",
+    "sms_type": "P", "encoding": "T", 
+    "phonenumber": "${recipients}",
+    "textmessage": "${text}"
+}

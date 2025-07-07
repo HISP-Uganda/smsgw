@@ -1,0 +1,18 @@
+[Unit]
+Description=SMS Gateway Service
+After=network.target
+
+[Service]
+# User=postgres
+PIDFile=/run/smsgw.pid
+ExecStart=/usr/bin/smsgw
+TimeoutStopSec=10
+# Restart=on-failure
+Restart=always
+RestartSec=5
+ExecStop=-/sbin/start-stop-daemon --quiet --stop --retry QUIT/5 --pidfile /run/smsgw.pid
+StandardOutput=append:/var/log/smsgw/smsgw.log
+StandardError=append:/var/log/smsgw/smsgw-error.log
+
+[Install]
+WantedBy=multi-user.target

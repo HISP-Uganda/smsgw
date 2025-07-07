@@ -1,0 +1,26 @@
+smsgw
+# Ignore any IDE-specific files or directories
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Ignore system-specific files
+.DS_Store
+Thumbs.db
+dist/
+
+# GoLand IDE files
+*.iml
+
+# Compiled Object files, Static and Dynamic libs (Shared Objects)
+*.o
+*.a
+*.so
+
+# Compiled Binary files
+*.exe
+*.out
+
+# Dependency directories
+vendor/
