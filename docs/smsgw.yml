@@ -1,0 +1,71 @@
+database:
+  uri: "postgres://user:pass@localhost/smsgw?sslmode=disable"
+
+server:
+  migrations_directory: "file:///usr/share/smsgw/db/migrations"
+
+dhis2_instances:
+  "play":
+    id: "play"
+    baseURL: "https://play.im.dhis2.org/stable-2-42-1/api/"
+    username: "admin"
+    password: "district"
+    pat: ""
+    authMethod: "Basic"
+
+smsone:
+  smsone_baseurl: "http://apidocs.speedamobile.com/"
+  smsone_api_id: "xxxx"
+  smsone_api_password: "xxxx"
+  smsone_sender_id: "ANTENATAL"
+  smsone_sms_type: "P"
+  smsone_encoding: "T"
+
+telegram:
+  telegram_bots:
+    "256782820208":
+      chatID: 5979086375
+      token: "xxx"
+      description: "Samuel Sekiwere"
+    "256753475676":
+      chatID: 5979086375
+      token: "xxx"
+      description: "Samuel Sekiwere"
+
+templates:
+  language_attribute: lang # This is the key in your payload for the recipient's language
+
+  program_notification_templates:
+    - id: missed_appointment
+      notificationTrigger: SCHEDULED_DAYS_DUE_DATE
+      relativeScheduledDays: -1
+      messageTemplates:
+        en: "Hi A{sB1IHYu2xQT} We missed you on V{due_date} Please come to the clinic as soon as you can. Best regards your nurse at V{org_unit_name}"
+        sw: "Habari A{sB1IHYu2xQT}, tumekukosa V{due_date}. Tafadhali fika kliniki haraka iwezekanavyo. Wako muuguzi kutoka V{org_unit_name}"
+      recipientAttributes:
+        - ALeyhBFw22F
+        - dMjW6EgixVT
+
+    - id: enrollment_pw
+      notificationTrigger: ENROLLMENT
+      relativeScheduledDays: 0
+      messageTemplates:
+        en: "PW Welcome A{sB1IHYu2xQT} to our ANC services We will be sending reminder messages to come for ANC for you and your baby's health. Your midwife V{org_unit_nam
+e}"
+        sw: "PW Karibu A{sB1IHYu2xQT} kwenye huduma za ANC. Tutakuwa tukituma ujumbe wa kukukumbusha kuhudhuria ANC kwa ajili ya afya yako na mtoto. Mkunga wako V{org_unit
+_name}"
+      recipientAttributes:
+        - ALeyhBFw22F
+        - dMjW6EgixVT
+
+    - id: enrollment_nok
+      notificationTrigger: ENROLLMENT
+      relativeScheduledDays: 0
+      messageTemplates:
+        en: "NOK Welcome A{sB1IHYu2xQT} to our ANC services We will be sending reminder messages to come for ANC for you and your baby's health. Your midwife V{org_unit_na
+me}"
+        sw: "NOK Karibu A{sB1IHYu2xQT} kwenye huduma za ANC. Tutakuwa tukituma ujumbe wa kukukumbusha kuhudhuria ANC kwa ajili ya afya yako na mtoto. Mkunga wako V{org_uni
+t_name}"
+      recipientAttributes:
+        - ALeyhBFw22F
+        - dMjW6EgixVT
