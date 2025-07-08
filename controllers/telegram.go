@@ -22,6 +22,37 @@ func sendTelegramMessage(chatID int64, token, message string) error {
 	return err
 }
 
+func SendTestSMSorTelegram(
+	uniqueNumbers []string,
+	message string,
+	bots map[string]config.TelegramBot,
+	defaultBot config.TelegramBot,
+	sendTelegramMessage func(chatID int64, token, message string) error,
+) (successful, failed []string) {
+
+	for _, number := range uniqueNumbers {
+		fmt.Printf("Sending SMS to %s: %s\n", number, message)
+		if bot, ok := bots[number]; ok {
+			err := sendTelegramMessage(bot.ChatID, bot.Token, message)
+			if err != nil {
+				failed = append(failed, number)
+				continue
+			}
+			successful = append(successful, number)
+		} else {
+			// send to default bot, include the intended number in the message
+			testMsg := fmt.Sprintf("%s\nMeant For: %s", message, number)
+			err := sendTelegramMessage(defaultBot.ChatID, defaultBot.Token, testMsg)
+			if err != nil {
+				failed = append(failed, number)
+				continue
+			}
+			successful = append(successful, number)
+		}
+	}
+	return
+}
+
 var defaultTelegramBot = config.TelegramBot{
 	ChatID: 6369564746,
 	Token:  "6415410723:AAG-swrG3hMDYto8fiUswCmhJfeMlrZrqIU",

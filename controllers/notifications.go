@@ -65,27 +65,39 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 			dueDate = due.Format("2006-01-02")
 		}
 
+		// Consent logic via helper
+		consentValue := ""
+		consentAttr := cfg.Templates.ConsentAttribute
+		if consentAttr != "" {
+			if v, ok := payload[consentAttr]; ok && v != nil {
+				consentValue = fmt.Sprintf("%v", v)
+			}
+		}
+
+		recipientAttrs := utils.FilterRecipientAttributes(
+			tmpl.RecipientAttributes,
+			cfg.Templates.ConsentIgnoreAttributes,
+			consentValue,
+		)
+
 		// Extract recipient numbers using RecipientAttributes
-		phoneNumbers := utils.ExtractUniquePhones(payload, tmpl.RecipientAttributes, "UG")
+		phoneNumbers := utils.ExtractUniquePhones(payload, recipientAttrs, "UG")
 		if len(phoneNumbers) == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "No valid recipient phone numbers"})
 			return
 		}
 
-		langAttr := cfg.Templates.LanguageAttribute
-		lang := "en"
-		if langAttr != "" {
-			if l, ok := payload[langAttr]; ok && l != nil && fmt.Sprintf("%v", l) != "" {
-				lang = fmt.Sprintf("%v", l)
-			}
-		}
+		// Detect language for message template
+		lang := utils.DetectLanguage(payload, cfg.Templates.LanguageAttribute)
 		messageTemplate := tmpl.MessageTemplates[lang]
 		if messageTemplate == "" {
-			// fallback to first message template if not found
-			for _, v := range tmpl.MessageTemplates {
-				messageTemplate = v
-				break
-			}
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":               "No message template found for requested language",
+				"template_id":         tmpl.ID,
+				"requested_language":  lang,
+				"available_languages": utils.MapKeys(tmpl.MessageTemplates),
+			})
+			return
 		}
 
 		// Prepare the payload for template substitution
@@ -110,12 +122,40 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 		//	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send SMS"})
 		//	return
 		//}
+		if config.AppConfig.Server.InTestMode {
+			successful, failed := SendTestSMSorTelegram(
+				phoneNumbers,
+				message,
+				config.AppConfig.Telegram.TelegramBots,
+				defaultTelegramBot,
+				sendTelegramMessage, // your function (e.g., func sendTelegramMessage(chatID int64, token, msg string) error)
+			)
+
+			c.JSON(http.StatusOK, gin.H{
+				"status":      "Test mode: Sent via Telegram",
+				"recipients":  successful,
+				"failed":      failed,
+				"template_id": tmpl.ID,
+				"lang":        lang,
+			})
+			return
+		}
+
 		log.Printf("Sending SMS to %v: %s", phoneNumbers, message)
+		successfulSends, failedSends := SendBulkSMSWithSMSOne(
+			phoneNumbers,
+			message,
+			config.AppConfig.SMSOne,
+			smsOneClient,
+			sendUsingSMSOne,
+		)
 
 		c.JSON(http.StatusOK, gin.H{
 			"status":      "Notification sent",
-			"recipients":  phoneNumbers,
+			"recipients":  successfulSends,
+			"failed":      failedSends,
 			"template_id": tmpl.ID,
+			"lang":        lang,
 		})
 	}
 }

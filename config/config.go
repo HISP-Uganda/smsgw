@@ -35,27 +35,34 @@ type DHISInstance struct {
 	AuthMethod string `mapstructure:"authMethod"`
 }
 
+type SMSOneConfig struct {
+	SMSOneBaseURL     string `mapstructure:"smsone_baseurl" env:"SMSONE_BASEURL" env-description:"SMSOne Base URL"`
+	SMSOneApiID       string `mapstructure:"smsone_api_id" env:"SMSONE_APIID" env-description:"SMSOne API ID"`
+	SMSOneAPIPassword string `mapstructure:"smsone_api_password" env:"SMSONE_APIPASSWORD" env-description:"SMSOne API Password"`
+	SMSOneSenderID    string `mapstructure:"smsone_sender_id" env:"SMSONE_SENDERID" env-description:"SMSOne Sender ID"`
+	SMSOneSmsType     string `mapstructure:"smsone_sms_type" env:"SMSONE_SMSTYPE" env-description:"SMSOne SMS Type"`
+	SMSOneEncoding    string `mapstructure:"smsone_encoding" env:"SMSONE_ENCODING" env-description:"SMSOne Encoding"`
+}
+
 type Config struct {
 	Database struct {
 		URI string `mapstructure:"uri" env:"DATABASE_URI" env-description:"Database URI"`
 	} `yaml:"database"`
 	Server struct {
+		Port                int    `mapstructure:"port" env:"PORT" env-description:"Server Port"`
 		MigrationsDirectory string `mapstructure:"migrations_directory" env:"MIGRATIONS_DIRECTORY" env-description:"Directory for database migrations"`
+		InTestMode          bool   `mapstructure:"in_test_mode" env:"IN_TEST_MODE" env-description:"Run in test mode, disables certain features"`
 	} `yaml:"server"`
 	DHISInstances map[string]DHISInstance `mapstructure:"dhis_instances" env:"DHIS_INSTANCES" env-description:"DHIS2 Instances Configuration"`
-	SMSOne        struct {
-		SMSOneBaseURL     string `mapstructure:"smsone_baseurl" env:"SMSONE_BASEURL" env-description:"SMSOne Base URL"`
-		SMSOneApiID       string `mapstructure:"smsone_api_id" env:"SMSONE_APIID" env-description:"SMSOne API ID"`
-		SMSOneAPIPassword string `mapstructure:"smsone_api_password" env:"SMSONE_APIPASSWORD" env-description:"SMSOne API Password"`
-		SMSOneSenderID    string `mapstructure:"smsone_sender_id" env:"SMSONE_SENDERID" env-description:"SMSOne Sender ID"`
-		SMSOneSmsType     string `mapstructure:"smsone_sms_type" env:"SMSONE_SMSTYPE" env-description:"SMSOne SMS Type"`
-		SMSOneEncoding    string `mapstructure:"smsone_encoding" env:"SMSONE_ENCODING" env-description:"SMSOne Encoding"`
-	} `yaml:"smsone"`
-	Telegram struct {
+	SMSOne        SMSOneConfig            `yaml:"smsone"`
+	Telegram      struct {
 		TelegramBots map[string]TelegramBot `mapstructure:"telegram_bots" env:"TELEGRAM_BOTS" env-description:"Telegram Bots Configuration"`
 	} `yaml:"telegram"`
 	Templates struct {
-		LanguageAttribute            string                        `mapstructure:"language_attribute" env:"LANGUAGE_ATTRIBUTE" env-description:"Language Attribute for Templates"`
+		LanguageAttribute       string   `mapstructure:"language_attribute" env:"LANGUAGE_ATTRIBUTE" env-description:"Language Attribute for Templates"`
+		ConsentAttribute        string   `mapstructure:"consent_attribute" env:"CONSENT_ATTRIBUTE" env-description:"Consent Attribute for Messaging Next of Kin"`
+		ConsentIgnoreAttributes []string `mapstructure:"consent_ignore_attributes" env:"CONSENT_IGNORE_ATTRIBUTES" env-description:"Attributes to ignore for consent checks"`
+
 		ProgramNotificationTemplates []ProgramNotificationTemplate `mapstructure:"program_notification_templates" env:"TEMPLATES" env-description:"Program Notification Templates"`
 	} `yaml:"templates"`
 }
@@ -105,6 +112,8 @@ func init() {
 	AppConfig.SMSOne.SMSOneSenderID = "ANTENATAL"
 	AppConfig.SMSOne.SMSOneSmsType = "P"
 	AppConfig.SMSOne.SMSOneEncoding = "T"
+	AppConfig.Server.InTestMode = false
+	AppConfig.Server.Port = 8383
 	err := viper.Unmarshal(&AppConfig)
 	if err != nil {
 		log.Fatalf("unable to decode into struct, %v", err)

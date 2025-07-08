@@ -27,6 +27,37 @@ type SMSOneRequest struct {
 	V5          string `json:"V5,omitempty"`
 }
 
+// SendBulkSMSWithSMSOne sends a message to multiple numbers using SMSOne.
+// Returns slices of successful and failed numbers.
+func SendBulkSMSWithSMSOne(
+	numbers []string,
+	message string,
+	cfg config.SMSOneConfig, // struct with ApiID, APIPassword, etc.
+	smsOneClient *client.Client, // your HTTP client
+	sendFunc func(SMSOneRequest, *client.Client) (*resty.Response, error),
+) (successful, failed []string) {
+	for _, number := range numbers {
+		request := SMSOneRequest{
+			ApiID:       cfg.SMSOneApiID,
+			ApiPassword: cfg.SMSOneAPIPassword,
+			SmsType:     cfg.SMSOneSmsType,
+			SenderID:    cfg.SMSOneSenderID,
+			Encoding:    cfg.SMSOneEncoding,
+			PhoneNumber: number,
+			TextMessage: message,
+		}
+		resp, err := sendFunc(request, smsOneClient)
+		if err != nil {
+			log.Printf("Failed to send SMS to %s: %v", number, err)
+			failed = append(failed, number)
+		} else {
+			log.Printf("Successfully sent SMS to %s: %v", number, string(resp.Body()))
+			successful = append(successful, number)
+		}
+	}
+	return successful, failed
+}
+
 type SMSOneController struct{}
 
 var smsOneClient = client.NewClient(config.AppConfig.SMSOne.SMSOneBaseURL, "", "", "")
@@ -45,29 +76,36 @@ func (s *SMSOneController) SMSOneHandler(c *gin.Context) {
 	log.Printf("Numbers: %v", uniqueNumbers)
 
 	// create a slice to keep track of failed sends
-	failedSends := make([]string, 0)
-	successfulSends := make([]string, 0)
-	for _, number := range uniqueNumbers {
-		request := SMSOneRequest{
-			ApiID:       config.AppConfig.SMSOne.SMSOneApiID,
-			ApiPassword: config.AppConfig.SMSOne.SMSOneAPIPassword,
-			SmsType:     config.AppConfig.SMSOne.SMSOneSmsType,
-			SenderID:    config.AppConfig.SMSOne.SMSOneSenderID,
-			Encoding:    config.AppConfig.SMSOne.SMSOneEncoding,
-			PhoneNumber: number,
-			TextMessage: message,
-		}
-		resp, err := sendUsingSMSOne(request, smsOneClient)
-		if err != nil {
-			failedSends = append(failedSends, number)
-			log.Printf("Failed to send SMS to %s: %v", number, err)
-			// c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		} else {
-			log.Printf("Successfully sent SMS to %s: %v", number, string(resp.Body()))
-			successfulSends = append(successfulSends, number)
-			// c.String(http.StatusOK, string(resp.Body()))
-		}
-	}
+	//failedSends := make([]string, 0)
+	//successfulSends := make([]string, 0)
+	//for _, number := range uniqueNumbers {
+	//	request := SMSOneRequest{
+	//		ApiID:       config.AppConfig.SMSOne.SMSOneApiID,
+	//		ApiPassword: config.AppConfig.SMSOne.SMSOneAPIPassword,
+	//		SmsType:     config.AppConfig.SMSOne.SMSOneSmsType,
+	//		SenderID:    config.AppConfig.SMSOne.SMSOneSenderID,
+	//		Encoding:    config.AppConfig.SMSOne.SMSOneEncoding,
+	//		PhoneNumber: number,
+	//		TextMessage: message,
+	//	}
+	//	resp, err := sendUsingSMSOne(request, smsOneClient)
+	//	if err != nil {
+	//		failedSends = append(failedSends, number)
+	//		log.Printf("Failed to send SMS to %s: %v", number, err)
+	//		// c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	//	} else {
+	//		log.Printf("Successfully sent SMS to %s: %v", number, string(resp.Body()))
+	//		successfulSends = append(successfulSends, number)
+	//		// c.String(http.StatusOK, string(resp.Body()))
+	//	}
+	//}
+	successfulSends, failedSends := SendBulkSMSWithSMSOne(
+		uniqueNumbers,
+		message,
+		config.AppConfig.SMSOne,
+		smsOneClient,
+		sendUsingSMSOne, // your function: func(SMSOneRequest, *resty.Client) (*resty.Response, error)
+	)
 	c.JSON(http.StatusOK, gin.H{
 		"failed_sends":     failedSends,
 		"successful_sends": successfulSends,

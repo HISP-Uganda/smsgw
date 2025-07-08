@@ -47,5 +47,5 @@ func main() {
 	notificationControlle := &controllers.NotificationController{}
 	router.POST("/notification", notificationControlle.NotificationHandler(&config.AppConfig))
 
-	router.Run(":8383") // Listen and serve on 0.0.0.0:8080
+	router.Run(fmt.Sprintf(":%d", config.AppConfig.Server.Port))
 }

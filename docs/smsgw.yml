@@ -3,6 +3,8 @@ database:
 
 server:
   migrations_directory: "file:///usr/share/smsgw/db/migrations"
+  in_test_mode: false # Set to true for testing, false for production
+  port: 8080
 
 dhis2_instances:
   "play":
@@ -34,6 +36,9 @@ telegram:
 
 templates:
   language_attribute: lang # This is the key in your payload for the recipient's language
+  consent_attribute: consent # This is the key in your payload for the recipient's consent
+  consent_ignore_attributes:
+    - ALeyhBFw22F # This is the key in your payload for the recipient's consent that should be ignored
 
   program_notification_templates:
     - id: missed_appointment
