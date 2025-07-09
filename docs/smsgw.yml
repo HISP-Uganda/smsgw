@@ -24,6 +24,10 @@ smsone:
   smsone_encoding: "T"
 
 telegram:
+  default_bot:
+    chatID: 5979086375
+    token: "xxx"
+    description: "Samuel Sekiwere"
   telegram_bots:
     "256782820208":
       chatID: 5979086375

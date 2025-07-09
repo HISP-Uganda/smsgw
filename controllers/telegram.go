@@ -53,11 +53,6 @@ func SendTestSMSorTelegram(
 	return
 }
 
-var defaultTelegramBot = config.TelegramBot{
-	ChatID: 6369564746,
-	Token:  "6415410723:AAG-swrG3hMDYto8fiUswCmhJfeMlrZrqIU",
-}
-
 type TelegramController struct{}
 
 func (t *TelegramController) SendSMS(c *gin.Context) {
@@ -94,7 +89,9 @@ func (t *TelegramController) SendSMS(c *gin.Context) {
 		} else {
 			// send to default bot
 			message = fmt.Sprintf("%s\n Meant For: %s", message, number)
-			err := sendTelegramMessage(defaultTelegramBot.ChatID, defaultTelegramBot.Token, message)
+			err := sendTelegramMessage(
+				config.AppConfig.Telegram.DefaultBot.ChatID,
+				config.AppConfig.Telegram.DefaultBot.Token, message)
 			if err != nil {
 				failedSends = append(failedSends, number)
 				continue

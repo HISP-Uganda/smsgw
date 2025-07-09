@@ -56,6 +56,7 @@ type Config struct {
 	DHISInstances map[string]DHISInstance `mapstructure:"dhis_instances" env:"DHIS_INSTANCES" env-description:"DHIS2 Instances Configuration"`
 	SMSOne        SMSOneConfig            `yaml:"smsone"`
 	Telegram      struct {
+		DefaultBot   TelegramBot            `mapstructure:"default_bot" env:"DEFAULT_BOT" env-description:"Default Telegram Bot Configuration"`
 		TelegramBots map[string]TelegramBot `mapstructure:"telegram_bots" env:"TELEGRAM_BOTS" env-description:"Telegram Bots Configuration"`
 	} `yaml:"telegram"`
 	Templates struct {

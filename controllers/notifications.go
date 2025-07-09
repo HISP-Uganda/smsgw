@@ -127,7 +127,7 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 				phoneNumbers,
 				message,
 				config.AppConfig.Telegram.TelegramBots,
-				defaultTelegramBot,
+				config.AppConfig.Telegram.DefaultBot,
 				sendTelegramMessage, // your function (e.g., func sendTelegramMessage(chatID int64, token, msg string) error)
 			)
 
