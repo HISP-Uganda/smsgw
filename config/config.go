@@ -61,6 +61,7 @@ type Config struct {
 	} `yaml:"telegram"`
 	Templates struct {
 		LanguageAttribute       string   `mapstructure:"language_attribute" env:"LANGUAGE_ATTRIBUTE" env-description:"Language Attribute for Templates"`
+		AllowMessagingAttribute string   `mapstructure:"allow_messaging_attribute" env:"ALLOW_MESSAGING_ATTRIBUTE" env-description:"Attribute to allow messaging"`
 		ConsentAttribute        string   `mapstructure:"consent_attribute" env:"CONSENT_ATTRIBUTE" env-description:"Consent Attribute for Messaging Next of Kin"`
 		ConsentIgnoreAttributes []string `mapstructure:"consent_ignore_attributes" env:"CONSENT_IGNORE_ATTRIBUTES" env-description:"Attributes to ignore for consent checks"`
 

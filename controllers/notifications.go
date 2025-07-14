@@ -73,6 +73,19 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 				consentValue = fmt.Sprintf("%v", v)
 			}
 		}
+		if cfg.Templates.AllowMessagingAttribute != "" {
+			if v, ok := payload[cfg.Templates.AllowMessagingAttribute]; ok && v != nil {
+				allowMessaging := fmt.Sprintf("%v", v)
+				if strings.EqualFold(allowMessaging, "false") || strings.EqualFold(allowMessaging, "yes") {
+					c.JSON(http.StatusOK, gin.H{
+						"status":           "Not allowed to send due to ignore messaging attribute",
+						"template_id":      tmpl.ID,
+						"ignore_attribute": cfg.Templates.AllowMessagingAttribute,
+					})
+					return
+				}
+			}
+		}
 
 		recipientAttrs := utils.FilterRecipientAttributes(
 			tmpl.RecipientAttributes,
