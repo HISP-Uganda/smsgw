@@ -4,6 +4,7 @@ database:
 server:
   migrations_directory: "file:///usr/share/smsgw/db/migrations"
   in_test_mode: false # Set to true for testing, false for production
+  debug: false # Set to false in production
   port: 8080
 
 dhis2_instances:

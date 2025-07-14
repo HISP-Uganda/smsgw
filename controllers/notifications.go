@@ -21,6 +21,9 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
 			return
 		}
+		if cfg.Server.Debug {
+			log.Debugf("Received payload: %v", payload)
+		}
 
 		// Parse query params
 		templateID := c.Query("template_id")
@@ -33,6 +36,9 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 			tmpl = config.FindTemplateByID(cfg, templateID)
 			if tmpl == nil {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Template not found"})
+				if cfg.Server.Debug {
+					log.Debugf("Template ID %s not found in configuration", templateID)
+				}
 				return
 			}
 		} else {
@@ -52,6 +58,9 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 			}
 			if tmpl == nil {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Template not found by trigger/days_offset"})
+				if cfg.Server.Debug {
+					log.Debugf("No template found for trigger %s and days_offset %s", trigger, daysOffsetStr)
+				}
 				return
 			}
 		}
@@ -82,6 +91,11 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 						"template_id":      tmpl.ID,
 						"ignore_attribute": cfg.Templates.AllowMessagingAttribute,
 					})
+					if cfg.Server.Debug {
+						log.Debugf(
+							"Not allowed to send due to ignore messaging attribute: %s",
+							cfg.Templates.AllowMessagingAttribute)
+					}
 					return
 				}
 			}
@@ -97,6 +111,9 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 		phoneNumbers := utils.ExtractUniquePhones(payload, recipientAttrs, "UG")
 		if len(phoneNumbers) == 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "No valid recipient phone numbers"})
+			if cfg.Server.Debug {
+				log.Debugf("No valid recipient phone numbers found in payload: %v", payload)
+			}
 			return
 		}
 
@@ -110,6 +127,12 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 				"requested_language":  lang,
 				"available_languages": utils.MapKeys(tmpl.MessageTemplates),
 			})
+			if cfg.Server.Debug {
+				log.Debugf(
+					"No message template found for requested language %s in template ID %s. Available languages: %v",
+					lang, tmpl.ID, utils.MapKeys(tmpl.MessageTemplates),
+				)
+			}
 			return
 		}
 
@@ -151,6 +174,9 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 				"template_id": tmpl.ID,
 				"lang":        lang,
 			})
+			if config.AppConfig.Server.Debug {
+				log.Debugf("Test mode: Sent SMS to %v: %s", phoneNumbers, message)
+			}
 			return
 		}
 

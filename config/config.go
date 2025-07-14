@@ -52,6 +52,7 @@ type Config struct {
 		Port                int    `mapstructure:"port" env:"PORT" env-description:"Server Port"`
 		MigrationsDirectory string `mapstructure:"migrations_directory" env:"MIGRATIONS_DIRECTORY" env-description:"Directory for database migrations"`
 		InTestMode          bool   `mapstructure:"in_test_mode" env:"IN_TEST_MODE" env-description:"Run in test mode, disables certain features"`
+		Debug               bool   `mapstructure:"debug" env:"DEBUG" env-description:"Enable debug mode for more verbose logging"`
 	} `yaml:"server"`
 	DHISInstances map[string]DHISInstance `mapstructure:"dhis_instances" env:"DHIS_INSTANCES" env-description:"DHIS2 Instances Configuration"`
 	SMSOne        SMSOneConfig            `yaml:"smsone"`
@@ -116,6 +117,7 @@ func init() {
 	AppConfig.SMSOne.SMSOneEncoding = "T"
 	AppConfig.Server.InTestMode = false
 	AppConfig.Server.Port = 8383
+	AppConfig.Server.Debug = false
 	err := viper.Unmarshal(&AppConfig)
 	if err != nil {
 		log.Fatalf("unable to decode into struct, %v", err)
