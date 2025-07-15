@@ -1,6 +1,9 @@
 package utils
 
-import "github.com/nyaruka/phonenumbers"
+import (
+	"github.com/nyaruka/phonenumbers"
+	"strings"
+)
 
 func RemoveDuplicates(numbers []string) []string {
 	uniqueNumbers := make(map[string]bool)
@@ -33,6 +36,7 @@ func ExtractUniquePhones(data map[string]interface{}, keys []string, defaultRegi
 		if val, ok := data[key]; ok {
 			if str, ok := val.(string); ok {
 				num, err := NormalizePhoneNumber(str, defaultRegion)
+				num = strings.ReplaceAll(num, "+", "")
 				if err == nil && num != "" {
 					if _, exists := seen[num]; !exists {
 						seen[num] = struct{}{}
