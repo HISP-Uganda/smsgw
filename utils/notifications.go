@@ -6,21 +6,21 @@ import (
 )
 
 // FilterRecipientAttributes filters recipient attributes based on consent value and ignore list
-func FilterRecipientAttributes(attrs, ignoreAttrs []string, consentValue string) []string {
+func FilterRecipientAttributes(recipientAttributes, ignoreAttrs []string, consentValue string) []string {
 	if strings.ToLower(consentValue) == "no" {
-		filtered := make([]string, 0, len(attrs))
+		filtered := make([]string, 0, len(recipientAttributes))
 		ignoreSet := make(map[string]struct{}, len(ignoreAttrs))
 		for _, a := range ignoreAttrs {
 			ignoreSet[strings.ToLower(a)] = struct{}{}
 		}
-		for _, attr := range attrs {
+		for _, attr := range recipientAttributes {
 			if _, ignore := ignoreSet[strings.ToLower(attr)]; !ignore {
 				filtered = append(filtered, attr)
 			}
 		}
 		return filtered
 	}
-	return attrs
+	return recipientAttributes
 }
 
 // DetectLanguage detects the language from payload using the configured attribute (default: "en")

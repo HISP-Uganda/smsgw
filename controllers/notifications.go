@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
@@ -23,7 +24,12 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 		}
 
 		if cfg.Server.Debug {
-			log.Debugf("Received payload: %v", payload)
+			jsonPayload, err := json.Marshal(payload)
+			if err != nil {
+				log.Errorf("Failed to marshal payload to JSON: %v", err)
+			} else {
+				log.Debugf("Received payload: %s", jsonPayload)
+			}
 		}
 
 		templateID, trigger, daysOffsetStr := c.Query("template_id"), c.Query("trigger"), c.Query("days_offset")
@@ -36,14 +42,17 @@ func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.Han
 		dueDate := computeDueDate(payload, tmpl)
 		consentValue := extractConsentValue(payload, cfg.Templates.ConsentAttribute)
 
-		if !isMessagingAllowed(payload, cfg, consentValue, tmpl) {
+		if !isMessagingAllowed(payload, cfg) {
 			respondWithStatus(c, "Not allowed to send due to ignore messaging attribute", tmpl.ID, cfg.Templates.AllowMessagingAttribute)
 			return
 		}
 
 		phoneNumbers := extractRecipientNumbers(payload, tmpl, cfg, consentValue)
 		if len(phoneNumbers) == 0 {
-			respondWithError(c, http.StatusBadRequest, "No valid recipient phone numbers")
+			c.JSON(http.StatusOK, gin.H{
+				"status":  "No recipients",
+				"message": "No valid recipient phone numbers found",
+			})
 			return
 		}
 
@@ -109,7 +118,7 @@ func extractConsentValue(payload map[string]interface{}, consentAttr string) str
 	return ""
 }
 
-func isMessagingAllowed(payload map[string]interface{}, cfg *config.Config, consentValue string, tmpl *config.ProgramNotificationTemplate) bool {
+func isMessagingAllowed(payload map[string]interface{}, cfg *config.Config) bool {
 	if cfg.Templates.AllowMessagingAttribute != "" {
 		if v, ok := payload[cfg.Templates.AllowMessagingAttribute]; ok && v != nil {
 			allowMessaging := fmt.Sprintf("%v", v)
@@ -119,8 +128,18 @@ func isMessagingAllowed(payload map[string]interface{}, cfg *config.Config, cons
 	return true
 }
 
-func extractRecipientNumbers(payload map[string]interface{}, tmpl *config.ProgramNotificationTemplate, cfg *config.Config, consentValue string) []string {
-	recipientAttrs := utils.FilterRecipientAttributes(tmpl.RecipientAttributes, cfg.Templates.ConsentIgnoreAttributes, consentValue)
+func extractRecipientNumbers(
+	payload map[string]interface{},
+	tmpl *config.ProgramNotificationTemplate,
+	cfg *config.Config,
+	consentValue string,
+) []string {
+	recipientAttrs := utils.FilterRecipientAttributes(
+		tmpl.RecipientAttributes,
+		cfg.Templates.ConsentIgnoreAttributes,
+		consentValue,
+	)
+
 	return utils.ExtractUniquePhones(payload, recipientAttrs, "UG")
 }
 
