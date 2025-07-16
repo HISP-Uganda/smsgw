@@ -7,7 +7,7 @@ import (
 
 // FilterRecipientAttributes filters recipient attributes based on consent value and ignore list
 func FilterRecipientAttributes(recipientAttributes, ignoreAttrs []string, consentValue string) []string {
-	if strings.ToLower(consentValue) == "no" {
+	if strings.ToLower(consentValue) == "no" || strings.ToLower(consentValue) == "false" {
 		filtered := make([]string, 0, len(recipientAttributes))
 		ignoreSet := make(map[string]struct{}, len(ignoreAttrs))
 		for _, a := range ignoreAttrs {
