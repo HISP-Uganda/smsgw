@@ -20,7 +20,7 @@ func FilterRecipientAttributes(recipientAttributes, ignoreAttrs []string, consen
 		}
 		return filtered
 	}
-	return recipientAttributes
+	return []string{}
 }
 
 // DetectLanguage detects the language from payload using the configured attribute (default: "en")
