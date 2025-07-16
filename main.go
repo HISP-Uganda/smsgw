@@ -3,10 +3,13 @@ package main
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
+	log "github.com/sirupsen/logrus"
 	"net/http"
+	"os"
 	"smsgw/config"
 	"smsgw/controllers"
 	"smsgw/db"
+	"time"
 )
 
 var splash = `
@@ -14,6 +17,21 @@ var splash = `
 ┗━┓┃┃┃┗━┓   ┃╺┓┣━┫ ┃ ┣╸ ┃╻┃┣━┫┗┳┛
 ┗━┛╹ ╹┗━┛   ┗━┛╹ ╹ ╹ ┗━╸┗┻┛╹ ╹ ╹
 `
+
+func init() {
+	formatter := new(log.TextFormatter)
+	formatter.TimestampFormat = time.RFC3339
+	formatter.FullTimestamp = true
+
+	if config.AppConfig.Server.Debug {
+		log.SetLevel(log.DebugLevel)
+	} else {
+		log.SetLevel(log.InfoLevel)
+	}
+
+	log.SetFormatter(formatter)
+	log.SetOutput(os.Stdout)
+}
 
 func main() {
 	fmt.Printf(splash)

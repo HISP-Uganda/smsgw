@@ -16,185 +16,167 @@ type NotificationController struct{}
 
 func (n *NotificationController) NotificationHandler(cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var payload map[string]interface{}
-		if err := c.BindJSON(&payload); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+		payload, err := parsePayload(c)
+		if err != nil {
+			respondWithError(c, http.StatusBadRequest, "Invalid payload")
 			return
 		}
+
 		if cfg.Server.Debug {
 			log.Debugf("Received payload: %v", payload)
 		}
 
-		// Parse query params
-		templateID := c.Query("template_id")
-		trigger := c.Query("trigger")
-		daysOffsetStr := c.Query("days_offset")
-
-		// Find template by ID (primary approach)
-		var tmpl *config.ProgramNotificationTemplate
-		if templateID != "" {
-			tmpl = config.FindTemplateByID(cfg, templateID)
-			if tmpl == nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Template not found"})
-				if cfg.Server.Debug {
-					log.Debugf("Template ID %s not found in configuration", templateID)
-				}
-				return
-			}
-		} else {
-			// Optionally, search by trigger and days_offset if templateID not given
-			var daysOffset *int
-			if daysOffsetStr != "" {
-				if v, err := strconv.Atoi(daysOffsetStr); err == nil {
-					daysOffset = &v
-				}
-			}
-			for _, t := range cfg.Templates.ProgramNotificationTemplates {
-				if (trigger == "" || strings.EqualFold(t.NotificationTrigger, trigger)) &&
-					(daysOffset == nil || t.RelativeScheduledDays == *daysOffset) {
-					tmpl = &t
-					break
-				}
-			}
-			if tmpl == nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Template not found by trigger/days_offset"})
-				if cfg.Server.Debug {
-					log.Debugf("No template found for trigger %s and days_offset %s", trigger, daysOffsetStr)
-				}
-				return
-			}
+		templateID, trigger, daysOffsetStr := c.Query("template_id"), c.Query("trigger"), c.Query("days_offset")
+		tmpl, err := findTemplate(cfg, templateID, trigger, daysOffsetStr)
+		if err != nil {
+			respondWithError(c, http.StatusNotFound, err.Error())
+			return
 		}
 
-		// Compute due_date if SCHEDULED_DAYS_DUE_DATE
-		currentDateStr, _ := payload["CURRENT_DATE"].(string)
-		currentDate, _ := time.Parse("2006-01-02", currentDateStr)
-		dueDate := ""
-		if tmpl.NotificationTrigger == "SCHEDULED_DAYS_DUE_DATE" {
-			due := currentDate.AddDate(0, 0, -tmpl.RelativeScheduledDays)
-			dueDate = due.Format("2006-01-02")
+		dueDate := computeDueDate(payload, tmpl)
+		consentValue := extractConsentValue(payload, cfg.Templates.ConsentAttribute)
+
+		if !isMessagingAllowed(payload, cfg, consentValue, tmpl) {
+			respondWithStatus(c, "Not allowed to send due to ignore messaging attribute", tmpl.ID, cfg.Templates.AllowMessagingAttribute)
+			return
 		}
 
-		// Consent logic via helper
-		consentValue := ""
-		consentAttr := cfg.Templates.ConsentAttribute
-		if consentAttr != "" {
-			if v, ok := payload[consentAttr]; ok && v != nil {
-				consentValue = fmt.Sprintf("%v", v)
-			}
-		}
-		if cfg.Templates.AllowMessagingAttribute != "" {
-			if v, ok := payload[cfg.Templates.AllowMessagingAttribute]; ok && v != nil {
-				allowMessaging := fmt.Sprintf("%v", v)
-				if strings.EqualFold(allowMessaging, "false") || strings.EqualFold(allowMessaging, "yes") {
-					c.JSON(http.StatusOK, gin.H{
-						"status":           "Not allowed to send due to ignore messaging attribute",
-						"template_id":      tmpl.ID,
-						"ignore_attribute": cfg.Templates.AllowMessagingAttribute,
-					})
-					if cfg.Server.Debug {
-						log.Debugf(
-							"Not allowed to send due to ignore messaging attribute: %s",
-							cfg.Templates.AllowMessagingAttribute)
-					}
-					return
-				}
-			}
-		}
-
-		recipientAttrs := utils.FilterRecipientAttributes(
-			tmpl.RecipientAttributes,
-			cfg.Templates.ConsentIgnoreAttributes,
-			consentValue,
-		)
-
-		// Extract recipient numbers using RecipientAttributes
-		phoneNumbers := utils.ExtractUniquePhones(payload, recipientAttrs, "UG")
+		phoneNumbers := extractRecipientNumbers(payload, tmpl, cfg, consentValue)
 		if len(phoneNumbers) == 0 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "No valid recipient phone numbers"})
-			if cfg.Server.Debug {
-				log.Debugf("No valid recipient phone numbers found in payload: %v", payload)
-			}
+			respondWithError(c, http.StatusBadRequest, "No valid recipient phone numbers")
 			return
 		}
 
-		// Detect language for message template
-		lang := utils.DetectLanguage(payload, cfg.Templates.LanguageAttribute)
-		messageTemplate := tmpl.MessageTemplates[lang]
-		if messageTemplate == "" {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error":               "No message template found for requested language",
-				"template_id":         tmpl.ID,
-				"requested_language":  lang,
-				"available_languages": utils.MapKeys(tmpl.MessageTemplates),
-			})
-			if cfg.Server.Debug {
-				log.Debugf(
-					"No message template found for requested language %s in template ID %s. Available languages: %v",
-					lang, tmpl.ID, utils.MapKeys(tmpl.MessageTemplates),
-				)
-			}
+		message, err := craftMessage(payload, tmpl, cfg.Templates.LanguageAttribute, dueDate)
+		if err != nil {
+			respondWithError(c, http.StatusNotFound, err.Error())
 			return
 		}
 
-		// Prepare the payload for template substitution
-		msgPayload := make(map[string]interface{})
-		for k, v := range payload {
-			msgPayload[k] = v
+		handleMessageSending(c, cfg, phoneNumbers, message, tmpl.ID, language(payload, cfg.Templates.LanguageAttribute))
+	}
+}
+
+// Helper Functions Below
+
+func parsePayload(c *gin.Context) (map[string]interface{}, error) {
+	var payload map[string]interface{}
+	if err := c.BindJSON(&payload); err != nil {
+		return nil, err
+	}
+	return payload, nil
+}
+
+func findTemplate(cfg *config.Config, templateID, trigger, daysOffsetStr string) (*config.ProgramNotificationTemplate, error) {
+	if templateID != "" {
+		tmpl := config.FindTemplateByID(cfg, templateID)
+		if tmpl == nil {
+			return nil, fmt.Errorf("Template not found")
 		}
-		if dueDate != "" {
-			msgPayload["due_date"] = dueDate
+		return tmpl, nil
+	}
+
+	var daysOffset *int
+	if daysOffsetStr != "" {
+		if v, err := strconv.Atoi(daysOffsetStr); err == nil {
+			daysOffset = &v
 		}
-
-		message := config.SubstituteTemplate(messageTemplate, msgPayload)
-
-		// Business rules
-		//if !config.TemplateIsAllowedToSend(*tmpl, payload, dueDate) {
-		//	c.JSON(http.StatusOK, gin.H{"status": "Not allowed to send, per business rules"})
-		//	return
-		//}
-
-		// Send SMS
-		//if err := sendSMS(phoneNumbers, message); err != nil {
-		//	c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send SMS"})
-		//	return
-		//}
-		if config.AppConfig.Server.InTestMode {
-			successful, failed := SendTestSMSorTelegram(
-				phoneNumbers,
-				message,
-				config.AppConfig.Telegram.TelegramBots,
-				config.AppConfig.Telegram.DefaultBot,
-				sendTelegramMessage, // your function (e.g., func sendTelegramMessage(chatID int64, token, msg string) error)
-			)
-
-			c.JSON(http.StatusOK, gin.H{
-				"status":      "Test mode: Sent via Telegram",
-				"recipients":  successful,
-				"failed":      failed,
-				"template_id": tmpl.ID,
-				"lang":        lang,
-			})
-			if config.AppConfig.Server.Debug {
-				log.Debugf("Test mode: Sent SMS to %v: %s", phoneNumbers, message)
-			}
-			return
+	}
+	for _, t := range cfg.Templates.ProgramNotificationTemplates {
+		if (trigger == "" || strings.EqualFold(t.NotificationTrigger, trigger)) &&
+			(daysOffset == nil || t.RelativeScheduledDays == *daysOffset) {
+			return &t, nil
 		}
+	}
+	return nil, fmt.Errorf("Template not found by trigger/days_offset")
+}
 
-		log.Printf("Sending SMS to %v: %s", phoneNumbers, message)
-		successfulSends, failedSends := SendBulkSMSWithSMSOne(
-			phoneNumbers,
-			message,
-			config.AppConfig.SMSOne,
-			smsOneClient,
-			sendUsingSMSOne,
-		)
+func computeDueDate(payload map[string]interface{}, tmpl *config.ProgramNotificationTemplate) string {
+	if tmpl.NotificationTrigger != "SCHEDULED_DAYS_DUE_DATE" {
+		return ""
+	}
+	currentDateStr, _ := payload["CURRENT_DATE"].(string)
+	currentDate, _ := time.Parse("2006-01-02", currentDateStr)
+	return currentDate.AddDate(0, 0, -tmpl.RelativeScheduledDays).Format("2006-01-02")
+}
 
+func extractConsentValue(payload map[string]interface{}, consentAttr string) string {
+	if consentAttr != "" {
+		if v, ok := payload[consentAttr]; ok && v != nil {
+			return fmt.Sprintf("%v", v)
+		}
+	}
+	return ""
+}
+
+func isMessagingAllowed(payload map[string]interface{}, cfg *config.Config, consentValue string, tmpl *config.ProgramNotificationTemplate) bool {
+	if cfg.Templates.AllowMessagingAttribute != "" {
+		if v, ok := payload[cfg.Templates.AllowMessagingAttribute]; ok && v != nil {
+			allowMessaging := fmt.Sprintf("%v", v)
+			return !strings.EqualFold(allowMessaging, "false") && !strings.EqualFold(allowMessaging, "no")
+		}
+	}
+	return true
+}
+
+func extractRecipientNumbers(payload map[string]interface{}, tmpl *config.ProgramNotificationTemplate, cfg *config.Config, consentValue string) []string {
+	recipientAttrs := utils.FilterRecipientAttributes(tmpl.RecipientAttributes, cfg.Templates.ConsentIgnoreAttributes, consentValue)
+	return utils.ExtractUniquePhones(payload, recipientAttrs, "UG")
+}
+
+func craftMessage(payload map[string]interface{}, tmpl *config.ProgramNotificationTemplate, langAttr, dueDate string) (string, error) {
+	lang := utils.DetectLanguage(payload, langAttr)
+	messageTemplate := tmpl.MessageTemplates[lang]
+	if messageTemplate == "" {
+		return "", fmt.Errorf("No message template found for requested language: %s", lang)
+	}
+
+	msgPayload := make(map[string]interface{})
+	for k, v := range payload {
+		msgPayload[k] = v
+	}
+	if dueDate != "" {
+		msgPayload["due_date"] = dueDate
+	}
+
+	return config.SubstituteTemplate(messageTemplate, msgPayload), nil
+}
+
+func respondWithError(c *gin.Context, code int, message string) {
+	c.JSON(code, gin.H{"error": message})
+}
+
+func respondWithStatus(c *gin.Context, status, templateID, ignoreAttr string) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":           status,
+		"template_id":      templateID,
+		"ignore_attribute": ignoreAttr,
+	})
+}
+
+func handleMessageSending(c *gin.Context, cfg *config.Config, phoneNumbers []string, message, templateID, lang string) {
+	if cfg.Server.InTestMode {
+		successful, failed := SendTestSMSorTelegram(phoneNumbers, message, config.AppConfig.Telegram.TelegramBots, config.AppConfig.Telegram.DefaultBot, sendTelegramMessage)
 		c.JSON(http.StatusOK, gin.H{
-			"status":      "Notification sent",
-			"recipients":  successfulSends,
-			"failed":      failedSends,
-			"template_id": tmpl.ID,
+			"status":      "Test mode: Sent via Telegram",
+			"recipients":  successful,
+			"failed":      failed,
+			"template_id": templateID,
 			"lang":        lang,
 		})
+		return
 	}
+
+	successfulSends, failedSends := SendBulkSMSWithSMSOne(phoneNumbers, message, config.AppConfig.SMSOne, smsOneClient, sendUsingSMSOne)
+	c.JSON(http.StatusOK, gin.H{
+		"status":      "Notification sent",
+		"recipients":  successfulSends,
+		"failed":      failedSends,
+		"template_id": templateID,
+		"lang":        lang,
+	})
+}
+
+func language(payload map[string]interface{}, langAttr string) string {
+	return utils.DetectLanguage(payload, langAttr)
 }
