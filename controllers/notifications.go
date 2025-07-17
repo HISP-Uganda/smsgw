@@ -122,7 +122,7 @@ func isMessagingAllowed(payload map[string]interface{}, cfg *config.Config) bool
 	if cfg.Templates.AllowMessagingAttribute != "" {
 		if v, ok := payload[cfg.Templates.AllowMessagingAttribute]; ok && v != nil {
 			allowMessaging := fmt.Sprintf("%v", v)
-			return !strings.EqualFold(allowMessaging, "false") && !strings.EqualFold(allowMessaging, "no")
+			return !strings.EqualFold(allowMessaging, "false") && !strings.EqualFold(allowMessaging, "no") && allowMessaging != ""
 		}
 	}
 	return true
