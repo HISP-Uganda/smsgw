@@ -1,6 +1,5 @@
 smsgw
 # Ignore any IDE-specific files or directories
-.vscode/
 .idea/
 *.sublime-project
 *.sublime-workspace
@@ -24,3 +23,6 @@ dist/
 
 # Dependency directories
 vendor/
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
